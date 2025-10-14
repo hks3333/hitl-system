@@ -59,21 +59,41 @@ def should_request_human_review(state: GraphState) -> str:
         return "end" # We'll map this string to the END node
 
 
+def execute_final_action_node(state: GraphState) -> GraphState:
+    """Executes the final action based on the human's decision."""
+    print("---NODE: EXECUTING FINAL ACTION---")
+    
+    # The human_decision was injected by our resume_worker
+    decision = state.get("human_decision") 
+    print(f"---Human decision was: {decision}---")
+    
+    if decision == "remove_content_and_ban":
+        print("---Action: Calling platform API to remove content and ban user.---")
+        # In a real app, an API call would happen here.
+    else:
+        print(f"---Action: Logging decision '{decision}' and closing case.---")
+        
+    return state
 
 
-# --- Define the graph (this part is the same) ---
+
 workflow = StateGraph(GraphState)
+
 workflow.add_node("analyze_content", analyze_content_node)
 workflow.add_node("request_human_review", request_human_review_node)
+workflow.add_node("execute_final_action", execute_final_action_node)
+
 workflow.set_entry_point("analyze_content")
 workflow.add_conditional_edges(
     "analyze_content", # The starting node for the decision
     should_request_human_review, # The function that makes the decision
     {
-        "request_human_review": "request_human_review", # If function returns "request_human_review", go to that node
-        "end": END                                      # If function returns "end", go to the END node
+        "request_human_review": "request_human_review",
+        "end": END
     }
 )
+workflow.add_edge("request_human_review", "execute_final_action")
+workflow.add_edge("execute_final_action", END)
 
 
 # with PostgresSaver.from_conn_string(settings.DATABASE_URL) as memory:

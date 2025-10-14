@@ -7,6 +7,8 @@ from langgraph.checkpoint.postgres import PostgresSaver
 
 from agent import workflow as agent_workflow, GraphState
 from config import settings
+from resume_worker import resume_agent
+
 
 # This is our FastAPI application
 app = FastAPI(
@@ -49,6 +51,7 @@ def run_agent_in_background(thread_id: str, payload: StartWorkflowRequest):
     
     print(f"---Agent run PAUSED for thread_id: {thread_id}---")
 
+
 # --- API Endpoints ---
 @app.post("/workflows/start", status_code=202)
 def start_workflow(payload: StartWorkflowRequest, background_tasks: BackgroundTasks):
@@ -64,15 +67,17 @@ def start_workflow(payload: StartWorkflowRequest, background_tasks: BackgroundTa
     # Immediately return the ID so the client can track the case
     return {"thread_id": thread_id, "message": "Workflow started. Awaiting AI analysis."}
 
-@app.post("/workflows/{thread_id}/resume", status_code=200)
+
+
+@app.post("/workflows/{thread_id}/resume", status_code=202) # Changed to 202 Accepted
 def resume_workflow(thread_id: str, payload: ResumeWorkflowRequest):
     """
-    Receives a human's decision and will (soon) resume the paused workflow.
+    Receives a human's decision and publishes an event to resume the workflow.
     """
-    print(f"---Received human decision for thread_id: {thread_id}---")
-    print(f"---Decision: {payload.human_decision} by {payload.moderator_id}---")
-
-    # In the NEXT step, this endpoint will publish a message to RabbitMQ.
-    # For now, we'll just return a success message.
+    print(f"---API: Received human decision for thread_id: {thread_id}---")
     
-    return {"thread_id": thread_id, "message": "Decision received. Workflow will be resumed."}
+    # Instead of just printing, we now send a message to our RabbitMQ queue.
+    # The worker will pick this up asynchronously.
+    resume_agent.send(thread_id, payload.dict())
+    
+    return {"thread_id": thread_id, "message": "Decision received. Resume signal sent to workflow."}

@@ -5,7 +5,9 @@ class Settings(BaseSettings):
     RABBITMQ_URL: str
     LANGCHAIN_API_KEY: str
     GROQ_API_KEY: str
-    langchain_tracing_v2: str = "false"
+    LANGCHAIN_TRACING_V2: str = "false"
+    LANGCHAIN_ENDPOINT: str
+    LANGCHAIN_PROJECT: str
 
     class Config:
         env_file = ".env"

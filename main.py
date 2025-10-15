@@ -46,9 +46,18 @@ def run_agent_in_background(thread_id: str, payload: StartWorkflowRequest):
         
         config = {"configurable": {"thread_id": thread_id}}
         
-        # Invoke the agent with memory
-        agent_with_memory.invoke(initial_state, config)
-    
+        # agent_with_memory.invoke(initial_state, config)
+        
+        for event in agent_with_memory.stream(initial_state, config):
+            # Each `event` is a dict like {"node_name": state}
+            print(f"STREAM EVENT: {event}")
+
+            # If we hit the human-review node, stop iterating and exit (leave checkpoint)
+            if "request_human_review" in event:
+                print(f"---Reached pause: thread {thread_id}. Persisted checkpoint and exiting background run.---")
+                return
+
+   
     print(f"---Agent run PAUSED for thread_id: {thread_id}---")
 
 

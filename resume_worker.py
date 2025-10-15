@@ -27,6 +27,13 @@ def resume_agent(thread_id: str, human_decision: dict):
             {"human_decision": human_decision["human_decision"]}
         )
 
-        agent_with_memory.invoke(None, config=config)
+        # agent_with_memory.invoke(None, config=config)
+
+        # Continue execution from the persisted checkpoint. Use stream to observe steps.
+        for event in agent_with_memory.stream(None, config):
+            print(f"RESUME STREAM EVENT: {event}")
+            # If you want to detect something specific you can do so here.
+            # If the workflow ends, the for-loop will complete.
+
     
     print(f"---WORKER: Agent for thread_id {thread_id} has been resumed.---")

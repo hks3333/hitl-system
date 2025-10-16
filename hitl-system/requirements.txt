@@ -1,0 +1,18 @@
+dramatiq[rabbitmq]
+python-dotenv
+fastapi
+uvicorn[standard]
+
+# Configuration / settings
+pydantic-settings
+pydantic
+
+# Database / checkpointing
+sqlalchemy
+psycopg[binary]
+# LangChain / LLM / LangGraph ecosystem - confirm exact PyPI names if you used forks
+langchain
+langchain-core
+langchain-groq
+langgraph
+langgraph.checkpoint.postgres

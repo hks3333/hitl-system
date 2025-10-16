@@ -291,3 +291,34 @@ ssl.SSLEOFError: EOF occurred in violation of protocol (_ssl.c:2406)
 2025-10-16 15:04:17,243 - INFO - Created channel=1
 2025-10-16 15:04:22,560 - INFO - ---API: Rollback requested for moderation_case_b96b8943-dfbc-4fc3-b205-f24c5bbdccf5 by user_appeal: dfa---
 2025-10-16 15:04:30,650 - INFO - ---API: Received human decision for thread_id: moderation_case_b96b8943-dfbc-4fc3-b205-f24c5bbdccf5---
+2025-10-16 16:39:49,358 - INFO - ---API: Enqueuing task for new workflow with thread_id: moderation_case_e4e93a9b-ced1-4578-9e64-43ff1c06fa1b---
+2025-10-16 16:39:49,537 - INFO - Pika version 1.3.2 connecting to ('64:ff9b::fce:8ce4', 5671, 0, 0)
+2025-10-16 16:39:49,607 - INFO - Socket connected: <socket.socket fd=968, family=23, type=1, proto=6, laddr=('2409:40f3:2003:4a24:75f5:4a3d:24f3:417f', 58429, 0, 0), raddr=('64:ff9b::fce:8ce4', 5671, 0, 0)>
+2025-10-16 16:39:49,706 - INFO - SSL handshake completed successfully: <ssl.SSLSocket fd=968, family=23, type=1, proto=0, laddr=('2409:40f3:2003:4a24:75f5:4a3d:24f3:417f', 58429, 0, 0), raddr=('64:ff9b::fce:8ce4', 5671, 0, 0)>
+2025-10-16 16:39:49,707 - INFO - Streaming transport linked up: (<pika.adapters.utils.io_services_utils._AsyncSSLTransport object at 0x0000028EF1216090>, _StreamingProtocolShim: <SelectConnection PROTOCOL transport=<pika.adapters.utils.io_services_utils._AsyncSSLTransport object at 0x0000028EF1216090> params=<URLParameters host=puffin.rmq2.cloudamqp.com port=5671 virtual_host=xhnpqlph ssl=True>>).
+2025-10-16 16:39:49,993 - INFO - AMQPConnector - reporting success: <SelectConnection OPEN transport=<pika.adapters.utils.io_services_utils._AsyncSSLTransport object at 0x0000028EF1216090> params=<URLParameters host=puffin.rmq2.cloudamqp.com port=5671 virtual_host=xhnpqlph ssl=True>>
+2025-10-16 16:39:49,997 - INFO - AMQPConnectionWorkflow - reporting success: <SelectConnection OPEN transport=<pika.adapters.utils.io_services_utils._AsyncSSLTransport object at 0x0000028EF1216090> params=<URLParameters host=puffin.rmq2.cloudamqp.com port=5671 virtual_host=xhnpqlph ssl=True>>
+2025-10-16 16:39:49,997 - INFO - Connection workflow succeeded: <SelectConnection OPEN transport=<pika.adapters.utils.io_services_utils._AsyncSSLTransport object at 0x0000028EF1216090> params=<URLParameters host=puffin.rmq2.cloudamqp.com port=5671 virtual_host=xhnpqlph ssl=True>>
+2025-10-16 16:39:49,997 - INFO - Created channel=1
+2025-10-16 16:40:09,290 - INFO - ---API: Enqueuing task for new workflow with thread_id: moderation_case_09b2d3a3-c171-49a7-86aa-2e22d4c6a6a9---
+2025-10-16 16:40:26,633 - INFO - ---API: Received human decision for thread_id: moderation_case_09b2d3a3-c171-49a7-86aa-2e22d4c6a6a9---
+2025-10-16 16:40:41,249 - INFO - ---API: Rollback requested for moderation_case_09b2d3a3-c171-49a7-86aa-2e22d4c6a6a9 by user_appeal: I was just quoting---
+2025-10-16 16:40:58,495 - INFO - ---API: Received human decision for thread_id: moderation_case_09b2d3a3-c171-49a7-86aa-2e22d4c6a6a9---
+2025-10-16 16:40:58,653 - INFO - Pika version 1.3.2 connecting to ('64:ff9b::fce:8ce4', 5671, 0, 0)
+2025-10-16 16:40:58,735 - INFO - Socket connected: <socket.socket fd=900, family=23, type=1, proto=6, laddr=('2409:40f3:2003:4a24:75f5:4a3d:24f3:417f', 57065, 0, 0), raddr=('64:ff9b::fce:8ce4', 5671, 0, 0)>
+2025-10-16 16:40:58,834 - INFO - SSL handshake completed successfully: <ssl.SSLSocket fd=900, family=23, type=1, proto=0, laddr=('2409:40f3:2003:4a24:75f5:4a3d:24f3:417f', 57065, 0, 0), raddr=('64:ff9b::fce:8ce4', 5671, 0, 0)>
+2025-10-16 16:40:58,836 - INFO - Streaming transport linked up: (<pika.adapters.utils.io_services_utils._AsyncSSLTransport object at 0x0000028EF1235EB0>, _StreamingProtocolShim: <SelectConnection PROTOCOL transport=<pika.adapters.utils.io_services_utils._AsyncSSLTransport object at 0x0000028EF1235EB0> params=<URLParameters host=puffin.rmq2.cloudamqp.com port=5671 virtual_host=xhnpqlph ssl=True>>).
+2025-10-16 16:40:59,122 - INFO - AMQPConnector - reporting success: <SelectConnection OPEN transport=<pika.adapters.utils.io_services_utils._AsyncSSLTransport object at 0x0000028EF1235EB0> params=<URLParameters host=puffin.rmq2.cloudamqp.com port=5671 virtual_host=xhnpqlph ssl=True>>
+2025-10-16 16:40:59,123 - INFO - AMQPConnectionWorkflow - reporting success: <SelectConnection OPEN transport=<pika.adapters.utils.io_services_utils._AsyncSSLTransport object at 0x0000028EF1235EB0> params=<URLParameters host=puffin.rmq2.cloudamqp.com port=5671 virtual_host=xhnpqlph ssl=True>>
+2025-10-16 16:40:59,123 - INFO - Connection workflow succeeded: <SelectConnection OPEN transport=<pika.adapters.utils.io_services_utils._AsyncSSLTransport object at 0x0000028EF1235EB0> params=<URLParameters host=puffin.rmq2.cloudamqp.com port=5671 virtual_host=xhnpqlph ssl=True>>
+2025-10-16 16:40:59,124 - INFO - Created channel=1
+2025-10-16 16:41:13,875 - INFO - ---API: Enqueuing task for new workflow with thread_id: moderation_case_9d647875-53bf-49d1-b519-7be8fddb167d---
+2025-10-16 16:41:25,235 - INFO - ---API: Enqueuing task for new workflow with thread_id: moderation_case_2201f43b-18e0-49ee-8f46-5543e4c6cd6b---
+2025-10-16 16:41:25,241 - INFO - Pika version 1.3.2 connecting to ('64:ff9b::fce:8ce4', 5671, 0, 0)
+2025-10-16 16:41:25,316 - INFO - Socket connected: <socket.socket fd=1432, family=23, type=1, proto=6, laddr=('2409:40f3:2003:4a24:75f5:4a3d:24f3:417f', 53326, 0, 0), raddr=('64:ff9b::fce:8ce4', 5671, 0, 0)>
+2025-10-16 16:41:25,386 - INFO - SSL handshake completed successfully: <ssl.SSLSocket fd=1432, family=23, type=1, proto=0, laddr=('2409:40f3:2003:4a24:75f5:4a3d:24f3:417f', 53326, 0, 0), raddr=('64:ff9b::fce:8ce4', 5671, 0, 0)>
+2025-10-16 16:41:25,387 - INFO - Streaming transport linked up: (<pika.adapters.utils.io_services_utils._AsyncSSLTransport object at 0x0000028EF127FA40>, _StreamingProtocolShim: <SelectConnection PROTOCOL transport=<pika.adapters.utils.io_services_utils._AsyncSSLTransport object at 0x0000028EF127FA40> params=<URLParameters host=puffin.rmq2.cloudamqp.com port=5671 virtual_host=xhnpqlph ssl=True>>).
+2025-10-16 16:41:25,649 - INFO - AMQPConnector - reporting success: <SelectConnection OPEN transport=<pika.adapters.utils.io_services_utils._AsyncSSLTransport object at 0x0000028EF127FA40> params=<URLParameters host=puffin.rmq2.cloudamqp.com port=5671 virtual_host=xhnpqlph ssl=True>>
+2025-10-16 16:41:25,649 - INFO - AMQPConnectionWorkflow - reporting success: <SelectConnection OPEN transport=<pika.adapters.utils.io_services_utils._AsyncSSLTransport object at 0x0000028EF127FA40> params=<URLParameters host=puffin.rmq2.cloudamqp.com port=5671 virtual_host=xhnpqlph ssl=True>>
+2025-10-16 16:41:25,649 - INFO - Connection workflow succeeded: <SelectConnection OPEN transport=<pika.adapters.utils.io_services_utils._AsyncSSLTransport object at 0x0000028EF127FA40> params=<URLParameters host=puffin.rmq2.cloudamqp.com port=5671 virtual_host=xhnpqlph ssl=True>>
+2025-10-16 16:41:25,651 - INFO - Created channel=1

@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HITL Moderation System - Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; }
+        .timeline-item { border-left: 3px solid #e5e7eb; padding-left: 1rem; margin-left: 0.5rem; }
+        .timeline-item.active { border-left-color: #3b82f6; }
+        .timeline-item.success { border-left-color: #10b981; }
+        .timeline-item.warning { border-left-color: #f59e0b; }
+        .timeline-item.error { border-left-color: #ef4444; }
+        .timeline-item.rollback { border-left-color: #8b5cf6; }
+        .moderator-form:focus-within { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto p-4">
+        <h1 class="text-3xl font-bold mb-6 text-center">🛡️ HITL Moderation System Demo</h1>
+        
+        <div class="grid grid-cols-2 gap-6">
+            <!-- LEFT: Forum Side -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-semibold mb-4">📝 Forum</h2>
+                
+                <!-- Post Form -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Post Content</label>
+                    <textarea 
+                        id="postContent" 
+                        rows="4" 
+                        class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Type your post here..."
+                    ></textarea>
+                    <button 
+                        id="postButton"
+                        class="mt-3 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+                    >
+                        Post
+                    </button>
+                </div>
+
+                <!-- Posts Timeline -->
+                <div id="postsContainer" class="space-y-6">
+                    <p class="text-gray-500 text-center py-8">No posts yet. Create your first post above!</p>
+                </div>
+            </div>
+
+            <!-- RIGHT: Moderator Dashboard -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-semibold mb-4">🛡️ Moderator Dashboard</h2>
+                
+                <div id="pendingCount" class="mb-4 text-sm text-gray-600">
+                    Pending Reviews: <span class="font-bold">0</span>
+                </div>
+
+                <div id="moderatorCases" class="space-y-4">
+                    <p class="text-gray-500 text-center py-8">No pending cases</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Appeal Modal -->
+    <div id="appealModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 class="text-xl font-bold mb-4">📢 Submit Appeal</h3>
+            <p class="text-sm text-gray-600 mb-4">Explain why this decision should be reconsidered:</p>
+            <textarea 
+                id="appealReason" 
+                rows="4" 
+                class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-purple-500 focus:border-transparent mb-4"
+                placeholder="e.g., I was quoting a movie, not making a threat..."
+            ></textarea>
+            <div class="flex gap-3">
+                <button 
+                    id="submitAppeal"
+                    class="flex-1 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition"
+                >
+                    Submit Appeal
+                </button>
+                <button 
+                    id="cancelAppeal"
+                    class="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition"
+                >
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        const posts = {}; // {thread_id: {content, timeline, status}}
+        let currentAppealThreadId = null;
+        let isUserTyping = false; // Track if user is actively typing
+
+        // Post new content
+        document.getElementById('postButton').addEventListener('click', async () => {
+            const content = document.getElementById('postContent').value.trim();
+            if (!content) {
+                alert('Please enter some content');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/workflows/start`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        content_id: `post_${Date.now()}`,
+                        content_text: content
+                    })
+                });
+
+                const data = await response.json();
+                const threadId = data.thread_id;
+
+                // Create post tracking
+                posts[threadId] = {
+                    content: content,
+                    timeline: [
+                        {time: new Date().toISOString(), event: 'Posted', status: 'success', icon: '✓'}
+                    ],
+                    status: 'PENDING_AI_ANALYSIS',
+                    lastEscalationCount: 0  // Track escalation count to detect appeal resolutions
+                };
+
+                // Clear textarea
+                document.getElementById('postContent').value = '';
+
+                // Render
+                renderPosts();
+
+                // Start polling for this post
+                pollWorkflowStatus(threadId);
+
+            } catch (error) {
+                console.error('Error posting:', error);
+                alert('Failed to post. Make sure the backend is running.');
+            }
+        });
+
+        // Render all posts
+        function renderPosts() {
+            const container = document.getElementById('postsContainer');
+            const postIds = Object.keys(posts);
+
+            if (postIds.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-8">No posts yet. Create your first post above!</p>';
+                return;
+            }
+
+            container.innerHTML = postIds.map(threadId => {
+                const post = posts[threadId];
+                const shortId = threadId.split('_').pop().substring(0, 8);
+                
+                return `
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <span class="text-xs font-mono text-gray-500">ID: ${shortId}</span>
+                                <p class="text-sm text-gray-700 mt-1">${escapeHtml(post.content.substring(0, 100))}${post.content.length > 100 ? '...' : ''}</p>
+                            </div>
+                            <span class="text-xs px-2 py-1 rounded ${getStatusBadgeClass(post.status)}">${post.status}</span>
+                        </div>
+                        
+                        <div class="space-y-2">
+                            ${post.timeline.map(item => `
+                                <div class="timeline-item ${item.status} text-sm py-1">
+                                    <span class="text-xs text-gray-500">${formatTime(item.time)}</span>
+                                    <span class="ml-2">${item.icon} ${item.event}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        ${post.showAppealButton ? `
+                            <button 
+                                onclick="openAppealModal('${threadId}')"
+                                class="mt-3 bg-purple-600 text-white text-sm px-4 py-2 rounded hover:bg-purple-700 transition"
+                            >
+                                📢 Appeal Decision
+                            </button>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Poll workflow status
+        async function pollWorkflowStatus(threadId) {
+            try {
+                const response = await fetch(`${API_BASE}/workflows/status/${threadId}`);
+                const data = await response.json();
+
+                const post = posts[threadId];
+                if (!post) return;
+
+                const oldStatus = post.status;
+                const newStatus = data.status;
+                const currentEscalationCount = data.escalation_count || 0;
+                const lastEscalationCount = post.lastEscalationCount || 0;
+
+                // Update timeline based on status changes OR escalation count changes (appeal resolution)
+                const hasStatusChanged = oldStatus !== newStatus;
+                const hasNewAppealResolution = newStatus === 'COMPLETED' && currentEscalationCount > lastEscalationCount;
+                
+                if (hasStatusChanged || hasNewAppealResolution) {
+                    post.status = newStatus;
+
+                    if (newStatus === 'AI_ANALYSIS_COMPLETE' || newStatus === 'PENDING_HUMAN_REVIEW') {
+                        // Only add AI analysis timeline if this is the first time (not after rollback)
+                        if (oldStatus !== 'ROLLBACK_COMPLETE') {
+                            const aiResult = data.analysis_result || {};
+                            const action = aiResult.suggested_action || 'UNKNOWN';
+                            const confidence = aiResult.confidence_score || 0;
+                            
+                            post.timeline.push({
+                                time: new Date().toISOString(),
+                                event: `AI Analysis: ${action} (${confidence}% confidence)`,
+                                status: action === 'ESCALATE' ? 'warning' : 'active',
+                                icon: '🔍'
+                            });
+
+                            if (newStatus === 'PENDING_HUMAN_REVIEW') {
+                                post.timeline.push({
+                                    time: new Date().toISOString(),
+                                    event: 'Waiting for moderator review',
+                                    status: 'warning',
+                                    icon: '⏸️'
+                                });
+                            }
+                        }
+                        // If coming from ROLLBACK_COMPLETE, the "waiting for re-review" was already added
+                    }
+
+                    if (newStatus === 'COMPLETED') {
+                        const decision = data.human_decision || 'unknown';
+                        const escalationCount = data.escalation_count || 0;
+                        const isAfterAppeal = escalationCount > lastEscalationCount;
+                        
+                        post.lastEscalationCount = escalationCount;
+                        
+                        post.timeline.push({
+                            time: new Date().toISOString(),
+                            event: isAfterAppeal 
+                                ? `⚖️ Final Decision (after appeal #${escalationCount}): ${decision}` 
+                                : `Decision: ${decision}`,
+                            status: decision.includes('ban') || decision.includes('remove') ? 'error' : 'success',
+                            icon: isAfterAppeal ? '⚖️' : '✅'
+                        });
+
+                        // Show executed actions
+                        const executedActions = data.executed_actions || [];
+                        executedActions.forEach(action => {
+                            const actionName = action.action.replace(/_/g, ' ');
+                            post.timeline.push({
+                                time: action.timestamp,
+                                event: `→ Executed: ${actionName}`,
+                                status: 'active',
+                                icon: '⚡'
+                            });
+                        });
+
+                        // Appeal button logic
+                        if (isAfterAppeal) {
+                            // After an appeal, only show button if they took punitive action again
+                            post.showAppealButton = decision.includes('ban') || decision.includes('remove') || decision.includes('warn');
+                        } else {
+                            // First decision - show button if punitive
+                            if (decision.includes('ban') || decision.includes('remove') || decision.includes('warn')) {
+                                post.showAppealButton = true;
+                            }
+                        }
+                    }
+
+                    if (newStatus === 'ROLLBACK_COMPLETE') {
+                        const rollbackHistory = data.rollback_history || [];
+                        const lastRollback = rollbackHistory[rollbackHistory.length - 1];
+                        const actionsReversed = lastRollback?.actions_reversed || [];
+                        
+                        // Show appeal submission
+                        post.timeline.push({
+                            time: lastRollback?.requested_at || new Date().toISOString(),
+                            event: `📢 Appeal submitted: "${lastRollback?.reason || 'No reason'}"`,
+                            status: 'rollback',
+                            icon: '🔄'
+                        });
+
+                        // Show each reversed action
+                        actionsReversed.forEach(action => {
+                            if (action.reversal_status === 'success') {
+                                const actionName = action.original_action.replace(/_/g, ' ');
+                                post.timeline.push({
+                                    time: action.timestamp,
+                                    event: `✓ Reversed: ${actionName}`,
+                                    status: 'rollback',
+                                    icon: '↩️'
+                                });
+                            }
+                        });
+
+                        // Show waiting for re-review
+                        post.timeline.push({
+                            time: lastRollback?.completed_at || new Date().toISOString(),
+                            event: 'Waiting for moderator re-review',
+                            status: 'warning',
+                            icon: '⏸️'
+                        });
+
+                        post.showAppealButton = false;
+                    }
+
+                    renderPosts();
+                }
+
+                // Continue polling logic
+                if (newStatus === 'COMPLETED') {
+                    const isApprovalAfterAppeal = hasNewAppealResolution && data.human_decision === 'ignore';
+                    
+                    if (isApprovalAfterAppeal) {
+                        return; // Stop polling - workflow truly complete
+                    }
+                    
+                    // Keep polling for potential appeals (slower interval)
+                    setTimeout(() => pollWorkflowStatus(threadId), 5000);
+                } else if (newStatus === 'ROLLBACK_COMPLETE') {
+                    setTimeout(() => pollWorkflowStatus(threadId), 2000);
+                } else {
+                    setTimeout(() => pollWorkflowStatus(threadId), 2000);
+                }
+
+            } catch (error) {
+                console.error('Error polling status:', error);
+                setTimeout(() => pollWorkflowStatus(threadId), 5000);
+            }
+        }
+
+        // Store form state to preserve during re-renders
+        const formState = {};
+
+        // Save form state before re-render
+        function saveFormState() {
+            document.querySelectorAll('form[onsubmit*="submitModeratorDecision"]').forEach(form => {
+                const threadId = form.onsubmit.toString().match(/submitModeratorDecision\(event, '([^']+)'/)?.[1];
+                if (!threadId) return;
+
+                const selectedRadio = form.querySelector(`input[name="decision_${threadId}"]:checked`);
+                const comment = form.querySelector(`textarea[name="comment_${threadId}"]`);
+
+                formState[threadId] = {
+                    decision: selectedRadio?.value || null,
+                    comment: comment?.value || ''
+                };
+            });
+        }
+
+        // Restore form state after re-render
+        function restoreFormState() {
+            Object.keys(formState).forEach(threadId => {
+                const state = formState[threadId];
+                
+                if (state.decision) {
+                    const radio = document.querySelector(`input[name="decision_${threadId}"][value="${state.decision}"]`);
+                    if (radio) radio.checked = true;
+                }
+
+                if (state.comment) {
+                    const textarea = document.querySelector(`textarea[name="comment_${threadId}"]`);
+                    if (textarea) textarea.value = state.comment;
+                }
+            });
+        }
+
+        // Poll pending cases for moderator
+        async function pollPendingCases() {
+            // Skip polling if user is actively typing
+            if (isUserTyping) {
+                setTimeout(pollPendingCases, 3000);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/workflows/pending`);
+                const data = await response.json();
+
+                const container = document.getElementById('moderatorCases');
+                const countSpan = document.querySelector('#pendingCount span');
+                
+                countSpan.textContent = data.count;
+
+                // Save current form state before re-rendering
+                saveFormState();
+
+                if (data.count === 0) {
+                    container.innerHTML = '<p class="text-gray-500 text-center py-8">No pending cases</p>';
+                } else {
+                    container.innerHTML = data.pending_cases.map(caseData => renderModeratorCase(caseData)).join('');
+                    
+                    // Restore form state after re-rendering
+                    setTimeout(() => {
+                        restoreFormState();
+                        attachTypingListeners();
+                    }, 0);
+                }
+
+            } catch (error) {
+                console.error('Error polling pending cases:', error);
+            }
+
+            setTimeout(pollPendingCases, 3000);
+        }
+
+        // Attach listeners to detect typing
+        function attachTypingListeners() {
+            document.querySelectorAll('#moderatorCases input, #moderatorCases textarea').forEach(element => {
+                element.addEventListener('focus', () => {
+                    isUserTyping = true;
+                });
+                element.addEventListener('blur', () => {
+                    setTimeout(() => isUserTyping = false, 500); // Small delay to handle tab switching
+                });
+            });
+        }
+
+        // Render moderator case
+        function renderModeratorCase(caseData) {
+            const shortId = caseData.thread_id.split('_').pop().substring(0, 8);
+            
+            // Check if this is an appeal case - either status is ROLLBACK_COMPLETE or has rollback history
+            const hasRollbackHistory = caseData.rollback_history && caseData.rollback_history.length > 0;
+            const isRollback = caseData.status === 'ROLLBACK_COMPLETE' || hasRollbackHistory;
+            
+            const rollbackInfo = hasRollbackHistory 
+                ? caseData.rollback_history[caseData.rollback_history.length - 1] 
+                : null;
+
+            return `
+                <div class="border ${isRollback ? 'border-purple-300 bg-purple-50' : 'border-gray-200'} rounded-lg p-4 moderator-form">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <span class="text-xs font-mono text-gray-500">Case: ${shortId}</span>
+                            ${isRollback ? '<span class="ml-2 text-xs bg-purple-600 text-white px-2 py-1 rounded">APPEAL</span>' : ''}
+                            ${caseData.escalation_count > 0 ? `<span class="ml-2 text-xs bg-orange-500 text-white px-2 py-1 rounded">Escalation #${caseData.escalation_count}</span>` : ''}
+                        </div>
+                    </div>
+
+                    <p class="text-sm text-gray-700 mb-3 bg-gray-50 p-2 rounded">${escapeHtml(caseData.content_preview)}</p>
+
+                    ${rollbackInfo ? `
+                        <div class="mb-4 p-4 bg-purple-100 border-2 border-purple-400 rounded-lg shadow-lg">
+                            <div class="flex items-center gap-2 mb-3">
+                                <span class="text-3xl">📢</span>
+                                <div>
+                                    <p class="text-base font-bold text-purple-900 uppercase">User Appeal</p>
+                                    <p class="text-xs text-purple-700">Re-Review Required</p>
+                                </div>
+                            </div>
+                            <div class="bg-white p-4 rounded-lg border-2 border-purple-300 mb-3 shadow-sm">
+                                <p class="text-xs font-bold text-purple-900 mb-2 uppercase">📝 Appeal Reason:</p>
+                                <p class="text-base text-gray-900 font-medium italic leading-relaxed">"${escapeHtml(rollbackInfo.reason || 'No reason provided')}"</p>
+                            </div>
+                            <div class="bg-purple-50 p-3 rounded border border-purple-200">
+                                <div class="grid grid-cols-2 gap-2 text-xs text-purple-800">
+                                    <div>
+                                        <p class="font-semibold">Submitted by:</p>
+                                        <p>${rollbackInfo.requested_by || 'Unknown'}</p>
+                                    </div>
+                                    <div>
+                                        <p class="font-semibold">Actions reversed:</p>
+                                        <p>${rollbackInfo.actions_reversed?.length || 0} action(s)</p>
+                                    </div>
+                                </div>
+                                <div class="mt-2 pt-2 border-t border-purple-200">
+                                    <p class="font-semibold text-xs text-purple-900">Previous decision:</p>
+                                    <p class="mt-1"><span class="bg-red-200 text-red-900 px-3 py-1 rounded-full text-xs font-bold">${rollbackInfo.previous_decision || 'Unknown'}</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <div id="aiAnalysis_${caseData.thread_id}" class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                        <p class="text-xs font-semibold text-blue-900 mb-1">🤖 AI Analysis:</p>
+                        <p class="text-sm text-blue-800">Loading...</p>
+                    </div>
+
+                    <form onsubmit="submitModeratorDecision(event, '${caseData.thread_id}')">
+                        <p class="text-sm font-medium mb-2">👤 Your Decision:</p>
+                        
+                        <div class="space-y-2 mb-3">
+                            <label class="flex items-center">
+                                <input type="radio" name="decision_${caseData.thread_id}" value="ignore" class="mr-2">
+                                <span class="text-sm">✅ Approve (ignore)</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="decision_${caseData.thread_id}" value="request_changes" class="mr-2">
+                                <span class="text-sm">⚠️ Warn user</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="decision_${caseData.thread_id}" value="approve_removal" class="mr-2">
+                                <span class="text-sm">🗑️ Remove content only</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="decision_${caseData.thread_id}" value="remove_content_and_ban" class="mr-2">
+                                <span class="text-sm">🔨 Remove content AND ban user</span>
+                            </label>
+                        </div>
+
+                        <label class="block text-sm font-medium mb-1">Comment (required):</label>
+                        <textarea 
+                            name="comment_${caseData.thread_id}"
+                            rows="2" 
+                            required
+                            class="w-full border border-gray-300 rounded p-2 text-sm mb-3"
+                            placeholder="Explain your decision..."
+                        ></textarea>
+
+                        <button 
+                            type="submit"
+                            class="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+                        >
+                            Submit Decision
+                        </button>
+                    </form>
+                </div>
+            `;
+        }
+
+        // Cache AI analysis to prevent reloading
+        const aiAnalysisCache = {};
+
+        // Load AI analysis for a case
+        async function loadAIAnalysis(threadId) {
+            // Check cache first
+            if (aiAnalysisCache[threadId]) {
+                const container = document.getElementById(`aiAnalysis_${threadId}`);
+                if (container && container.innerHTML.includes('Loading...')) {
+                    container.innerHTML = aiAnalysisCache[threadId];
+                }
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/workflows/status/${threadId}`);
+                const data = await response.json();
+                
+                const container = document.getElementById(`aiAnalysis_${threadId}`);
+                if (!container) return;
+
+                const aiResult = data.analysis_result || {};
+                const action = aiResult.suggested_action || 'UNKNOWN';
+                const confidence = aiResult.confidence_score || 0;
+                const violationType = aiResult.violation_type || 'unknown';
+                const severity = aiResult.severity || 'UNKNOWN';
+                const reasoning = aiResult.detailed_reasoning || 'No reasoning provided';
+                const keyPhrases = aiResult.key_phrases || [];
+                const context = aiResult.context_consideration || '';
+
+                const severityColor = {
+                    'CRITICAL': 'text-red-700',
+                    'HIGH': 'text-orange-700',
+                    'MEDIUM': 'text-yellow-700',
+                    'LOW': 'text-blue-700'
+                }[severity] || 'text-gray-700';
+
+                const html = `
+                    <p class="text-xs font-semibold text-blue-900 mb-2">🤖 AI Analysis:</p>
+                    <div class="text-sm text-blue-800 space-y-1">
+                        <p><strong>Suggested Action:</strong> <span class="px-2 py-0.5 rounded bg-blue-200">${action}</span></p>
+                        <p><strong>Violation Type:</strong> ${violationType}</p>
+                        <p><strong>Severity:</strong> <span class="${severityColor} font-semibold">${severity}</span></p>
+                        <p><strong>Confidence:</strong> ${confidence}%</p>
+                        <p class="pt-1"><strong>Reasoning:</strong><br><span class="text-xs italic">${escapeHtml(reasoning)}</span></p>
+                        ${keyPhrases.length > 0 ? `<p><strong>Key Phrases:</strong> ${keyPhrases.map(p => `<code class="bg-gray-200 px-1 rounded text-xs">${escapeHtml(p)}</code>`).join(', ')}</p>` : ''}
+                        ${context ? `<p class="text-xs text-blue-600"><strong>Context:</strong> ${escapeHtml(context)}</p>` : ''}
+                    </div>
+                `;
+
+                // Cache the result
+                aiAnalysisCache[threadId] = html;
+                container.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading AI analysis:', error);
+            }
+        }
+
+        // Submit moderator decision
+        async function submitModeratorDecision(event, threadId) {
+            event.preventDefault();
+            
+            const decision = document.querySelector(`input[name="decision_${threadId}"]:checked`)?.value;
+            const comment = document.querySelector(`textarea[name="comment_${threadId}"]`).value;
+
+            if (!decision) {
+                alert('Please select a decision');
+                return;
+            }
+
+            try {
+                await fetch(`${API_BASE}/workflows/${threadId}/resume`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        human_decision: decision,
+                        moderator_id: 'demo_moderator',
+                        comment: comment
+                    })
+                });
+
+                alert('Decision submitted!');
+                
+            } catch (error) {
+                console.error('Error submitting decision:', error);
+                alert('Failed to submit decision');
+            }
+        }
+
+        // Appeal modal
+        function openAppealModal(threadId) {
+            currentAppealThreadId = threadId;
+            document.getElementById('appealModal').classList.remove('hidden');
+            document.getElementById('appealReason').value = '';
+        }
+
+        document.getElementById('cancelAppeal').addEventListener('click', () => {
+            document.getElementById('appealModal').classList.add('hidden');
+            currentAppealThreadId = null;
+        });
+
+        document.getElementById('submitAppeal').addEventListener('click', async () => {
+            const reason = document.getElementById('appealReason').value.trim();
+            
+            if (!reason) {
+                alert('Please provide a reason for your appeal');
+                return;
+            }
+
+            try {
+                await fetch(`${API_BASE}/workflows/${currentAppealThreadId}/rollback`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        reason: reason,
+                        moderator_id: 'user_appeal'
+                    })
+                });
+
+                document.getElementById('appealModal').classList.add('hidden');
+                alert('Appeal submitted! Waiting for moderator review.');
+                
+            } catch (error) {
+                console.error('Error submitting appeal:', error);
+                alert('Failed to submit appeal');
+            }
+        });
+
+        // Utility functions
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatTime(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleTimeString();
+        }
+
+        function getStatusBadgeClass(status) {
+            const classes = {
+                'PENDING_AI_ANALYSIS': 'bg-blue-100 text-blue-800',
+                'AI_ANALYSIS_COMPLETE': 'bg-blue-100 text-blue-800',
+                'PENDING_HUMAN_REVIEW': 'bg-yellow-100 text-yellow-800',
+                'COMPLETED': 'bg-green-100 text-green-800',
+                'ROLLBACK_COMPLETE': 'bg-purple-100 text-purple-800'
+            };
+            return classes[status] || 'bg-gray-100 text-gray-800';
+        }
+
+        // Observer for AI analysis loading
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                mutation.addedNodes.forEach((node) => {
+                    if (node.nodeType === 1) {
+                        const aiAnalysisElements = node.querySelectorAll('[id^="aiAnalysis_"]');
+                        aiAnalysisElements.forEach((el) => {
+                            const threadId = el.id.replace('aiAnalysis_', '');
+                            loadAIAnalysis(threadId);
+                        });
+                    }
+                });
+            });
+        });
+
+        observer.observe(document.getElementById('moderatorCases'), {
+            childList: true,
+            subtree: true
+        });
+
+        // Start polling for pending cases
+        pollPendingCases();
+    </script>
+</body>
+</html>

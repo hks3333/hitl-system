@@ -1,20 +1,22 @@
 # main.py
 import uuid
 import logging
-from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 from langgraph.checkpoint.postgres import PostgresSaver
 
-# Import broker configuration BEFORE importing workers
 import event_broker
 
-from agent import workflow as agent_workflow, GraphState
+from agent import workflow as agent_workflow
 from config import settings
 from workers import start_agent, resume_agent, rollback_workflow_async
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# In-memory tracking for current session (for demo purposes)
+active_workflows = {}  # {thread_id: {"status": "...", "created_at": "...", "content_preview": "..."}}
 
 app = FastAPI(
     title="Guardian AI - Moderation Orchestrator",
@@ -51,6 +53,14 @@ def start_workflow(payload: StartWorkflowRequest):
     """
     thread_id = f"moderation_case_{uuid.uuid4()}"
     logging.info(f"---API: Enqueuing task for new workflow with thread_id: {thread_id}---")
+
+    # Track in session
+    from datetime import datetime, timezone
+    active_workflows[thread_id] = {
+        "status": "PENDING_AI_ANALYSIS",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "content_preview": payload.content_text[:100]  # First 100 chars
+    }
 
     # Send a message to the start_agent worker instead of using BackgroundTasks
     start_agent.send(thread_id, payload.dict())
@@ -118,6 +128,44 @@ def rollback_workflow(thread_id: str, payload: RollbackRequest):
     }
 
 
+@app.get("/workflows/pending")
+def get_pending_workflows():
+    """
+    Returns all workflows from current session that are pending human review.
+    """
+    pending_cases = []
+    
+    for thread_id in list(active_workflows.keys()):
+        try:
+            with PostgresSaver.from_conn_string(settings.DATABASE_URL) as memory:
+                agent_with_memory = agent_workflow.compile(checkpointer=memory)
+                config = {"configurable": {"thread_id": thread_id}}
+                state_snapshot = agent_with_memory.get_state(config)
+                
+                if state_snapshot:
+                    state = state_snapshot.values
+                    status = state.get("status", "UNKNOWN")
+                    
+                    # Update session tracking
+                    active_workflows[thread_id]["status"] = status
+                    
+                    # Include if pending human review or rollback complete (needs re-review)
+                    if status in ["PENDING_HUMAN_REVIEW", "ROLLBACK_COMPLETE"]:
+                        pending_cases.append({
+                            "thread_id": thread_id,
+                            "content_preview": active_workflows[thread_id].get("content_preview", ""),
+                            "created_at": active_workflows[thread_id].get("created_at"),
+                            "status": status,
+                            "escalation_count": state.get("escalation_count", 0),
+                            "rollback_history": state.get("rollback_history", [])
+                        })
+        except Exception as e:
+            logging.error(f"Error checking workflow {thread_id}: {e}")
+            continue
+    
+    return {"pending_cases": pending_cases, "count": len(pending_cases)}
+
+
 @app.get("/workflows/status/{thread_id}")
 def get_workflow_status(thread_id: str):
     """
@@ -140,38 +188,16 @@ def get_workflow_status(thread_id: str):
             # Extract GraphState from snapshot.values
             state = latest_state_snapshot.values
             
-            # For the frontend: Simple mapping from analysis_result (no 'none' default)
-            ai_result = state.get("analysis_result")
-            ai_suggestion = ai_result.get("violation_type") if ai_result else None
-            severity = ai_result.get("severity") if ai_result else None
-            suggested_action = ai_result.get("suggested_action") if ai_result else None
-            
-            # FIXED: Infer status from snapshot.next (no direct 'status' attr)
-            if not latest_state_snapshot.next:
-                inferred_status = "done"
-            else:
-                inferred_status = "interrupted"  # Paused/pending human review
-            
-            # ENHANCED: Expose more for dashboard
-            analysis_summary = ai_result.get("message") if ai_result else None
-            
             return {
                 "thread_id": thread_id,
-                "ai_suggestion": ai_suggestion,  # e.g., "confidential_info"
-                "analysis_summary": analysis_summary,  # e.g., "The post contains a potential API key..."
-                "severity": severity,
-                "suggested_action": suggested_action,
-                "analysis_result": ai_result,  # for richer frontends (optional)
-                "human_decision": state.get("human_decision"),  # e.g., "remove_content_and_ban"
-                "ui_schema": state.get("ui_schema"),  # Dynamic form schema
-                "rollback_history": state.get("rollback_history", []),  # Detailed rollback audit
-                "executed_actions": state.get("executed_actions", []),  # Actions that were executed
-                "escalation_count": state.get("escalation_count", 0),  # For escalation display
-                "status": state.get("status", inferred_status),  # Use explicit status if available
-                "workflow_status": inferred_status,  # Graph execution status
-                "next_node": latest_state_snapshot.next,  # e.g., tuple of upcoming nodes
-                "history": state.get("history", []),  # Full event history
-                "last_updated": state.get("last_updated")  # Last update timestamp
+                "analysis_result": state.get("analysis_result"),
+                "human_decision": state.get("human_decision"),
+                "rollback_history": state.get("rollback_history", []),
+                "executed_actions": state.get("executed_actions", []),
+                "escalation_count": state.get("escalation_count", 0),
+                "status": state.get("status", "UNKNOWN"),
+                "history": state.get("history", []),
+                "last_updated": state.get("last_updated")
             }
     except HTTPException:
         raise

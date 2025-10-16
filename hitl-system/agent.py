@@ -67,10 +67,28 @@ def analyze_content_node(state: GraphState) -> GraphState:
     state = update_state_meta(state, "Starting content analysis.")
 
     prompt = ChatPromptTemplate.from_template(
-        "You are an expert content moderator. Analyze the following text for policy violations like hate speech or violence. "
-        "Respond ONLY with a valid JSON object containing two keys: a 'confidence_score' (from 0 to 100) and a 'suggested_action' "
-        "which must be one of the following strings: 'IGNORE', 'WARN', or 'ESCALATE'.\n\n"
-        "Content to analyze: {content}"
+        """You are an expert content moderator for a community platform. Analyze the following content for policy violations.
+
+**Your task**: Provide a comprehensive analysis in JSON format with these exact keys:
+- "confidence_score": number from 0-100 (how confident you are in your assessment)
+- "suggested_action": one of ["IGNORE", "WARN", "ESCALATE"]
+- "violation_type": string describing the type of violation (e.g., "hate_speech", "violence", "harassment", "spam", "none")
+- "severity": one of ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+- "detailed_reasoning": 2-3 sentences explaining WHY this content is problematic or acceptable
+- "key_phrases": list of specific words/phrases that triggered the flag (if any)
+- "context_consideration": any mitigating factors (e.g., "could be satire", "lacks context")
+
+**Policy Guidelines**:
+- Hate speech, threats, violence → ESCALATE (CRITICAL/HIGH)
+- Harassment, bullying → ESCALATE (MEDIUM/HIGH)
+- Spam, off-topic → WARN (LOW)
+- Borderline cases → ESCALATE for human review
+- Normal discussion → IGNORE
+
+**Content to analyze**:
+{content}
+
+Respond with ONLY valid JSON, no other text."""
     )
     llm = ChatGroq(model_name="llama-3.3-70b-versatile", groq_api_key=settings.GROQ_API_KEY)
     chain = prompt | llm

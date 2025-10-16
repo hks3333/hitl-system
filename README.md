@@ -1,6 +1,5 @@
 # Architecture Diagram
-[media/nlp1.png](https://github.com/hks3333/hitl-system/blob/2a7cf13c3bb868abdcf0a48fe292ed52483a5df7/media/nlp1.png)
-
+![architecture]media/nlp1.png
 [![[vid.mp4]]](https://github.com/hks3333/hitl-system/blob/2a7cf13c3bb868abdcf0a48fe292ed52483a5df7/media/vid.mp4)
 
 ## Core Features

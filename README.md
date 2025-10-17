@@ -1,5 +1,5 @@
 # Architecture Diagram
-![architecture](media/nlp1.png)
+![architecture](media/architecture.png)
 
 ![demo](media/ezgif-8f6fcd49660429.gif)
 

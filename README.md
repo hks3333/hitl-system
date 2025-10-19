@@ -88,7 +88,7 @@ Integrating these powerful new tools brought its own set of challenges:
     * **The Fix:** This led to a better understanding of Python's context managers and FastAPI's lifecycle. The solution was to move the `with PostgresSaver(...)` block *inside* the background task, ensuring the connection was alive for the duration of the agent's run.
 
 3.  **The Final Pause/Resume Puzzle:** The agent would either run through the entire flow without pausing or resume from the beginning instead of where it left off.
-    * **The Fix:** After a few attempts, the definitive solution was found: compiling the agent with an explicit `interrupt_before=["node_to_pause"]`. This was the canonical LangGraph pattern for HITL, and it made the agent's behavior clean and predictable.
+    * **The Fix:** After a few attempts, the definitive solution was found: manually stopping the flow if human_review event is reached.
 
 ## Demo
 
@@ -103,6 +103,20 @@ This was a smart trade-off. It allowed the demo to focus on the most impressive 
 * The advanced **rollback and appeal** feature.
 
 This ensured that the project's core architectural strengths were the star of the show, rather than getting lost in frontend complexity. The final result is a testament to this iterative, problem-solving journey: a powerful, resilient, and well-architected system ready for any Human-in-the-Loop challenge.
+
+
+# Future Improvements
+
+There are a lot of improvement scope. Given more time, this are the things that could be improved:
+- Dynamic UI Generation Not yet Implemented, had plans to generate a schema and render it, but was very buggy.
+- Database Transactions and Rollback Mechanisms -- Current system is not transactional in nature. Partial failures can lead to inconsistencies. Could've wrapped critical sections in SQLAlchemy transactions.
+- There's no timeout and retry logic existing for human review, which isn't ideal at all for production.
+- Minor rollback issue if concurrent requests come up.
+- Abstraction of Langgraph agent, making it easier to integrate with any systems.
+- Caching with Redis (Redis cloud was down, so it was not used).
+- Usage of priority Queues to push more important reviews first.
+- RabbitMQ failures may result in losing messages during the period, so an outbox pattern could've been used.
+- Usage of circuit breakers to prevent overloading the system.
 
 ## Getting Started
 ### 1. Prerequisites

@@ -5,7 +5,6 @@
 # Architecture Diagram
 ![architecture](media/architecture.png)
 
-![demo](media/ezgif-8f6fcd49660429.gif)
 
 ## Core Features
 
@@ -21,7 +20,7 @@
 
   
 
-## The "Guardian" Architecture: A Deep Dive
+## The Architecture: A Deep Dive
 
 The system is designed as a set of decoupled services communicating through an event bus. This mirrors a professional "Command Center" operation, ensuring scalability and resilience.
 
@@ -122,48 +121,72 @@ There are a lot of improvement scope. Given more time, this are the things that 
 - RabbitMQ failures may result in losing messages during the period, so an outbox pattern could've been used.
 - Usage of circuit breakers to prevent overloading the system.
 
+![demo](media/ezgif-8f6fcd49660429.gif)
+
+
 ## Getting Started
+
+Follow these steps to get the HITL system running locally.
+
 ### 1. Prerequisites
 
-* Python 3.10+
-* An active virtual environment
-* Access keys for Supabase, CloudAMQP, Groq, and LangSmith.
+Before you begin, ensure you have the following:
+
+* **Python 3.10+** and an active virtual environment.
+* **Access Keys** for the following services:
+    * **Supabase** (for PostgreSQL)
+    * **CloudAMQP** (for RabbitMQ)
+    * **Groq** (for the LLM API)
+    * **LangSmith** (for observability and tracing)
 
 ### 2. Setup
-1.  **Clone the repository.**
 
-2.  **Install dependencies**:
+1.  **Clone the Repository**
+    ```bash
+    git clone https://github.com/hks3333/hitl-system.git
+    cd hitl-system
+    ```
 
-    ```bash
+2.  **Install Dependencies**
+    It's recommended to create and activate a virtual environment first.
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # On Windows: venv\Scripts\activate
+    pip install -r requirements.txt
+    ```
 
-    pip install -r requirements.txt
+3.  **Configure Environment Variables**
+    Create a `.env` file in the project root. You can copy the provided example file to get started.
+    ```bash
+    cp .env.example .env
+    ```
+    Now, open the `.env` file and fill in the required API keys and URLs from the services listed in the prerequisites.
 
-    ```
-
-3.  **Configure Environment**:
-
-    * Create a `.env` file in the `hitl-system` directory.
-
-    * Fill in the required API keys and URLs from your providers (Supabase, CloudAMQP, etc.). A `.env.example` is provided for reference.
+4.  **Set Up the Database Schema**
+    The `langgraph-checkpoint-postgres` library needs to create several tables in your database to store agent states. Run the included setup script to perform this one-time setup.
+    ```bash
+    python test.py
+    ```
 
 ### 3. Running the System
-The system requires two separate terminal processes to run concurrently.
+
+The system requires two separate terminal processes to run concurrently. Make sure your virtual environment is activated in both.
 
 * **Terminal 1: Start the API Server**
-
-    ```bash
-
-    uvicorn main:app --reload
-
-    ```
+    This server listens for incoming requests from the frontend or other services.
+    ```bash
+    uvicorn main:app --reload
+    ```
 
 * **Terminal 2: Start the Background Workers**
+    This process listens for tasks on the RabbitMQ queue and executes the agent logic. The `-p 1` flag is important to stay within the free-tier connection limits.
+    ```bash
+    dramatiq workers -p 1
+    ```
 
-    ```bash
+### 4. How to Demo
 
-    dramatiq workers -p 1
+Once both services are running, you can interact with the system:
 
-    ```
-
-
-You can also interact with the system via the automatically generated API documentation at `http://127.0.0.1:8000/docs` and the included `demo.html` file.
+* **Live Demo UI**: Open the `demo.html` file in your browser. This provides a complete UI to post content, see the workflow timeline, make moderation decisions, and even submit appeals.
+* **API Docs**: Navigate to `http://127.0.0.1:8000/docs` to see the auto-generated FastAPI documentation and interact with the API endpoints directly.

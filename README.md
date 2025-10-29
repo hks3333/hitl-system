@@ -1,7 +1,5 @@
 # Human in the Loop Orchestration System
 
-[Demo and explanation Video](https://drive.google.com/file/d/1stYlxnSjx1ZA2cRhctjk8Vg6xX-nCfco/view?usp=sharing)
-
 # Architecture Diagram
 ![architecture](media/architecture.png)
 
